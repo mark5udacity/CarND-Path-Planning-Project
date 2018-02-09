@@ -41,9 +41,9 @@ vector<double> getXY(double s, double d,
                      const vector<double> &maps_s,
                      const vector<double> &maps_x, const vector<double> &maps_y);
 
-void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) {
-    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-}
+void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
+
+json process_telemetry_data(json reference);
 
 int main() {
     uWS::Hub h;
@@ -83,8 +83,12 @@ int main() {
         map_waypoints_dy.push_back(d_y);
     }
 
-    h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy](
-            uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+    h.onMessage([&map_waypoints_x, &map_waypoints_y,
+                        &map_waypoints_s,
+                        &map_waypoints_dx, &map_waypoints_dy](
+            uWS::WebSocket<uWS::SERVER> ws,
+            char *data,
+            size_t length,
             uWS::OpCode opCode) {
         // "42" at the start of the message means there's a websocket message event.
         // The 4 signifies a websocket message
@@ -101,40 +105,7 @@ int main() {
                 string event = j[0].get<string>();
 
                 if (event == "telemetry") {
-                    // j[1] is the data JSON object
-
-                    // Main car's localization Data
-                    double car_x = j[1]["x"];
-                    double car_y = j[1]["y"];
-                    double car_s = j[1]["s"];
-                    double car_d = j[1]["d"];
-                    double car_yaw = j[1]["yaw"];
-                    double car_speed = j[1]["speed"];
-
-                    // Previous path data given to the Planner
-                    auto previous_path_x = j[1]["previous_path_x"];
-                    auto previous_path_y = j[1]["previous_path_y"];
-                    // Previous path's end s and d values
-                    double end_path_s = j[1]["end_path_s"];
-                    double end_path_d = j[1]["end_path_d"];
-
-                    // Sensor Fusion Data, a list of all other cars on the same side of the road.
-                    auto sensor_fusion = j[1]["sensor_fusion"];
-
-                    json msgJson;
-
-                    vector<double> next_x_vals;
-                    vector<double> next_y_vals;
-
-                    double dist_inc = 0.5;
-                    for (int i = 0; i < 50; i++) {
-                        next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-                        next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-                    }
-
-                    // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-                    msgJson["next_x"] = next_x_vals;
-                    msgJson["next_y"] = next_y_vals;
+                    json msgJson = process_telemetry_data(j[1]); // j[1] is the data JSON object
 
                     auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
@@ -362,4 +333,41 @@ vector<double> getXY(double s, double d,
 
     return {x, y};
 
+}
+
+json process_telemetry_data(json jsonData) {
+    json msgJson;
+
+    // Main car's localization Data
+    double car_x = jsonData["x"];
+    double car_y = jsonData["y"];
+    double car_s = jsonData["s"];
+    double car_d = jsonData["d"];
+    double car_yaw = jsonData["yaw"];
+    double car_speed = jsonData["speed"];
+
+    // Previous path data given to the Planner
+    auto previous_path_x = jsonData["previous_path_x"];
+    auto previous_path_y = jsonData["previous_path_y"];
+    // Previous path's end s and d values
+    double end_path_s = jsonData["end_path_s"];
+    double end_path_d = jsonData["end_path_d"];
+
+    // Sensor Fusion Data, a list of all other cars on the same side of the road.
+    auto sensor_fusion = jsonData["sensor_fusion"];
+
+    vector<double> next_x_vals;
+    vector<double> next_y_vals;
+
+    double dist_inc = 0.5;
+    for (int i = 0; i < 50; i++) {
+        next_x_vals.push_back(car_x + (dist_inc * i) * cos(deg2rad(car_yaw)));
+        next_y_vals.push_back(car_y + (dist_inc * i) * sin(deg2rad(car_yaw)));
+    }
+
+    // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+    msgJson["next_x"] = next_x_vals;
+    msgJson["next_y"] = next_y_vals;
+
+    return msgJson;
 }
