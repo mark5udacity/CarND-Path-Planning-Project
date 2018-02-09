@@ -86,7 +86,7 @@ int Map::NextWaypoint(double x, double y, double theta) {
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> Map::getFrenet(double x, double y, double theta) {
+pair<double, double> Map::getFrenet(double x, double y, double theta) {
     int next_wp = NextWaypoint(x, y, theta);
 
     int prev_wp;
@@ -127,12 +127,11 @@ vector<double> Map::getFrenet(double x, double y, double theta) {
 
     frenet_s += distance(0, 0, proj_x, proj_y);
 
-    return {frenet_s, frenet_d};
-
+    return make_pair(frenet_s, frenet_d);
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> Map::getXY(double s, double d) {
+pair<double, double> Map::getXY(double s, double d) {
     int prev_wp = -1;
 
     while (s > map_waypoints_s[prev_wp + 1] && (prev_wp < (int) (map_waypoints_s.size() - 1))) {
@@ -154,5 +153,5 @@ vector<double> Map::getXY(double s, double d) {
     double x = seg_x + d * cos(perp_heading);
     double y = seg_y + d * sin(perp_heading);
 
-    return {x, y};
+    return make_pair(x, y);
 }

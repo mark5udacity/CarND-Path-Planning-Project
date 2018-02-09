@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <math.h>
+#include <utility>
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
@@ -45,9 +46,9 @@ public:
 
     int NextWaypoint(double x, double y, double theta);
 
-    vector<double> getFrenet(double x, double y, double theta);
+    pair<double, double> getFrenet(double x, double y, double theta);
 
-    vector<double> getXY(double s, double d);
+    pair<double, double> getXY(double s, double d);
 };
 
 #endif //PATH_PLANNING_MAP_HELPER_H
