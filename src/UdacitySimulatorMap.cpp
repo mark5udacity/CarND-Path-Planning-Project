@@ -2,7 +2,10 @@
 // Created by Mark on 2/9/18.
 //
 
+#include <ios>
 #include "Map.h"
+
+using namespace std;
 
 Map::Map() {}
 
@@ -15,7 +18,7 @@ void Map::load_map(string map_file) {
     map_waypoints_dx.clear();
     map_waypoints_dy.clear();
 
-    ifstream in_map_(map_file_.c_str(), ifstream::in);
+    ifstream in_map_(map_file.c_str(), ifstream::in);
 
     string line;
     while (getline(in_map_, line)) {
@@ -84,7 +87,7 @@ int Map::NextWaypoint(double x, double y, double theta, const vector<double> &ma
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
 vector<double> Map::getFrenet(double x, double y, double theta,
-                         const vector<double> &maps_x, const vector<double> &maps_y) {
+                              const vector<double> &maps_x, const vector<double> &maps_y) {
     int next_wp = NextWaypoint(x, y, theta, maps_x, maps_y);
 
     int prev_wp;
@@ -130,8 +133,8 @@ vector<double> Map::getFrenet(double x, double y, double theta,
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
 vector<double> Map::getXY(double s, double d,
-                     const vector<double> &maps_s,
-                     const vector<double> &maps_x, const vector<double> &maps_y) {
+                          const vector<double> &maps_s,
+                          const vector<double> &maps_x, const vector<double> &maps_y) {
     int prev_wp = -1;
 
     while (s > maps_s[prev_wp + 1] && (prev_wp < (int) (maps_s.size() - 1))) {
