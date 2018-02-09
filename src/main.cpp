@@ -31,49 +31,20 @@ string hasData(string s);
 
 void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
 
-json process_telemetry_data(json data);
+json process_telemetry_data(Map map, json data);
 
 int main() {
     uWS::Hub h;
     bool firstTimeConnecting = true;
 
-    // Load up map values for waypoint's x,y,s and d normalized normal vectors
-    vector<double> map_waypoints_x;
-    vector<double> map_waypoints_y;
-    vector<double> map_waypoints_s;
-    vector<double> map_waypoints_dx;
-    vector<double> map_waypoints_dy;
+    Map map;
 
     // Waypoint map to read from
-    string map_file_ = "../data/highway_map.csv";
-    // The max s value before wrapping around the track back to 0
-    double max_s = 6945.554;
+    string map_file = "../data/highway_map.csv";
 
-    ifstream in_map_(map_file_.c_str(), ifstream::in);
+    map.load_map(map_file);
 
-    string line;
-    while (getline(in_map_, line)) {
-        istringstream iss(line);
-        double x;
-        double y;
-        float s;
-        float d_x;
-        float d_y;
-        iss >> x;
-        iss >> y;
-        iss >> s;
-        iss >> d_x;
-        iss >> d_y;
-        map_waypoints_x.push_back(x);
-        map_waypoints_y.push_back(y);
-        map_waypoints_s.push_back(s);
-        map_waypoints_dx.push_back(d_x);
-        map_waypoints_dy.push_back(d_y);
-    }
-
-    h.onMessage([&map_waypoints_x, &map_waypoints_y,
-                        &map_waypoints_s,
-                        &map_waypoints_dx, &map_waypoints_dy](
+    h.onMessage( [&map] (
             uWS::WebSocket<uWS::SERVER> ws,
             char *data,
             size_t length,
@@ -93,7 +64,7 @@ int main() {
                 string event = j[0].get<string>();
 
                 if (event == "telemetry") {
-                    json msgJson = process_telemetry_data(j[1]); // j[1] is the data JSON object
+                    json msgJson = process_telemetry_data(map, j[1]); // j[1] is the data JSON object
 
                     auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
@@ -208,7 +179,7 @@ string hasData(string s) {
     return "";
 }
 
-json process_telemetry_data(json data) {
+json process_telemetry_data(Map map, json data) {
     json msgJson;
 
     // Main car's localization Data

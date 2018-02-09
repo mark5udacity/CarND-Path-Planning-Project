@@ -13,15 +13,25 @@
 
 using namespace std;
 
+// The max s value before wrapping around the track back to 0
+const double MAX_S = 6945.554;
 
 class Map {
 
 private:
+    vector<double> map_waypoints_x;
+    vector<double> map_waypoints_y;
+    vector<double> map_waypoints_s;
+    vector<double> map_waypoints_dx;
+    vector<double> map_waypoints_dy;
 
 public:
     Map();
 
     virtual ~Map();
+
+    // Load up map values for waypoint's x,y,s and d normalized normal vectors
+    void load_map(string map_file);
 
     double distance(double x1, double y1, double x2, double y2);
 
