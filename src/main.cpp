@@ -41,8 +41,13 @@ vector<double> getXY(double s, double d,
                      const vector<double> &maps_s,
                      const vector<double> &maps_x, const vector<double> &maps_y);
 
+void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) {
+    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+}
+
 int main() {
     uWS::Hub h;
+    bool firstTimeConnecting = true;
 
     // Load up map values for waypoint's x,y,s and d normalized normal vectors
     vector<double> map_waypoints_x;
@@ -129,13 +134,12 @@ int main() {
                     auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
                     //this_thread::sleep_for(chrono::milliseconds(1000));
-                    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-
+                    sendMessage(ws, msg);
                 }
             } else {
                 // Manual driving
                 std::string msg = "42[\"manual\",{}]";
-                ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+                sendMessage(ws, msg);
             }
         }
     });
@@ -154,14 +158,68 @@ int main() {
         }
     });
 
-    h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-        std::cout << "Connected!!!" << std::endl;
+    h.onConnection([&h, &firstTimeConnecting](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+        if (firstTimeConnecting) {
+            cout << "Connected for first time!!!  Restarting simulator!" << endl;
+            firstTimeConnecting = false;
+            sendMessage(ws, RESET_SIMULATOR_WS_MESSAGE);
+        } else {
+            cout << "Reconnected to simulator, success!" << endl;
+        }
     });
 
     h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
                            char *message, size_t length) {
-        ws.close();
-        std::cout << "Disconnected" << std::endl;
+        if (code == WEBSOCKECT_OK_DISCONNECT_CODE) {
+            cout << "Disconnected normally." << endl;
+        } else {
+            cout << "Unexpected Disconnect with code: " << code << "!" << endl;
+        }
+
+        cout << "WARN: Not closing WS because we get bad access exception! (Which one cannot catch in C++!?)" << endl;
+        // StackOverflow https://stackoverflow.com/q/19304157 suggested that error code 1006 means to check onError
+        // But, but, but, adding onError here doesn't get called at all, everything seems alright
+        // (other than this ws.close() exc_bad_access)
+        // ws.close(code, message, length);
+        // Besides ^^, if we're getting disconnection method, then the connection is already closed??
+    });
+
+    h.onError([](void *user) {
+        // Code copied from: https://github.com/uNetworking/uWebSockets/blob/master/tests/main.cpp
+        switch ((long) user) {
+            case 1:
+                cout << "Client emitted error on invalid URI" << endl;
+                break;
+            case 2:
+                cout << "Client emitted error on resolve failure" << endl;
+                break;
+            case 3:
+                cout << "Client emitted error on connection timeout (non-SSL)" << endl;
+                break;
+            case 5:
+                cout << "Client emitted error on connection timeout (SSL)" << endl;
+                break;
+            case 6:
+                cout << "Client emitted error on HTTP response without upgrade (non-SSL)" << endl;
+                break;
+            case 7:
+                cout << "Client emitted error on HTTP response without upgrade (SSL)" << endl;
+                break;
+            case 10:
+                cout << "Client emitted error on poll error" << endl;
+                break;
+            case 11:
+                static int protocolErrorCount = 0;
+                protocolErrorCount++;
+                cout << "Client emitted error on invalid protocol" << endl;
+                if (protocolErrorCount > 1) {
+                    cout << "FAILURE:  " << protocolErrorCount << " errors emitted for one connection!"
+                         << endl;
+                }
+                break;
+            default:
+                cout << "FAILURE: " << user << " should not emit error!" << endl;
+        }
     });
 
     int port = 4567;
