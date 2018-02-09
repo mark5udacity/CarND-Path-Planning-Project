@@ -43,7 +43,7 @@ vector<double> getXY(double s, double d,
 
 void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
 
-json process_telemetry_data(json reference);
+json process_telemetry_data(json data);
 
 int main() {
     uWS::Hub h;
@@ -93,8 +93,8 @@ int main() {
         // "42" at the start of the message means there's a websocket message event.
         // The 4 signifies a websocket message
         // The 2 signifies a websocket event
-        //auto sdata = string(data).substr(0, length);
-        //cout << sdata << endl;
+        auto sdata = string(data).substr(0, length);
+        cout << sdata << endl;
         if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
             auto s = hasData(data);
@@ -335,34 +335,59 @@ vector<double> getXY(double s, double d,
 
 }
 
-json process_telemetry_data(json jsonData) {
+json process_telemetry_data(json data) {
     json msgJson;
 
     // Main car's localization Data
-    double car_x = jsonData["x"];
-    double car_y = jsonData["y"];
-    double car_s = jsonData["s"];
-    double car_d = jsonData["d"];
-    double car_yaw = jsonData["yaw"];
-    double car_speed = jsonData["speed"];
+    double car_x = data["x"];
+    double car_y = data["y"];
+    double car_s = data["s"];
+    double car_d = data["d"];
+    double car_yaw = data["yaw"];
+    double car_speed = data["speed"];
 
     // Previous path data given to the Planner
-    auto previous_path_x = jsonData["previous_path_x"];
-    auto previous_path_y = jsonData["previous_path_y"];
+    auto previous_path_x = data["previous_path_x"];
+    auto previous_path_y = data["previous_path_y"];
     // Previous path's end s and d values
-    double end_path_s = jsonData["end_path_s"];
-    double end_path_d = jsonData["end_path_d"];
+    double end_path_s = data["end_path_s"];
+    double end_path_d = data["end_path_d"];
 
     // Sensor Fusion Data, a list of all other cars on the same side of the road.
-    auto sensor_fusion = jsonData["sensor_fusion"];
+    auto sensor_fusion = data["sensor_fusion"];
 
     vector<double> next_x_vals;
     vector<double> next_y_vals;
 
+    double pos_x;
+    double pos_y;
+    double angle;
+    int path_size = previous_path_x.size();
+
+    for (int i = 0; i < path_size; i++) {
+        next_x_vals.push_back(previous_path_x[i]);
+        next_y_vals.push_back(previous_path_y[i]);
+    }
+
+    if (path_size == 0) {
+        pos_x = car_x;
+        pos_y = car_y;
+        angle = deg2rad(car_yaw);
+    } else {
+        pos_x = previous_path_x[path_size - 1];
+        pos_y = previous_path_y[path_size - 1];
+
+        double pos_x2 = previous_path_x[path_size - 2];
+        double pos_y2 = previous_path_y[path_size - 2];
+        angle = atan2(pos_y - pos_y2, pos_x - pos_x2);
+    }
+
     double dist_inc = 0.5;
-    for (int i = 0; i < 50; i++) {
-        next_x_vals.push_back(car_x + (dist_inc * i) * cos(deg2rad(car_yaw)));
-        next_y_vals.push_back(car_y + (dist_inc * i) * sin(deg2rad(car_yaw)));
+    for (int i = 0; i < 50 - path_size; i++) {
+        next_x_vals.push_back(pos_x + (dist_inc) * cos(angle + (i + 1) * (pi() / 100)));
+        next_y_vals.push_back(pos_y + (dist_inc) * sin(angle + (i + 1) * (pi() / 100)));
+        pos_x += (dist_inc) * cos(angle + (i + 1) * (pi() / 100));
+        pos_y += (dist_inc) * sin(angle + (i + 1) * (pi() / 100));
     }
 
     // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
