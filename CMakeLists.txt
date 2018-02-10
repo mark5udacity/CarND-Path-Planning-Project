@@ -7,7 +7,7 @@ add_definitions(-std=c++11)
 set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 
-set(sources src/UdacitySimulatorMap.cpp src/main.cpp)
+set(sources src/spline.h src/UdacitySimulatorMap.cpp src/main.cpp)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
 

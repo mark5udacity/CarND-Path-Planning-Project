@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "Map.h"
+#include "spline.h"
 
 using namespace std;
 
@@ -26,7 +27,7 @@ string hasData(string s);
 
 void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
 
-json process_telemetry_data(Map map, json data);
+json process_telemetry_data(Map map, json data, int lane, double ref_velocity);
 
 int main() {
     uWS::Hub h;
@@ -39,7 +40,11 @@ int main() {
 
     map.load_map(map_file);
 
-    h.onMessage( [&map] (
+    // start in lane 1
+    int lane = 1;
+    double ref_velocity = 49.5; //mph
+
+    h.onMessage( [&lane, &map, &ref_velocity] (
             uWS::WebSocket<uWS::SERVER> ws,
             char *data,
             size_t length,
@@ -59,12 +64,14 @@ int main() {
                 string event = j[0].get<string>();
 
                 if (event == "telemetry") {
-                    json msgJson = process_telemetry_data(map, j[1]); // j[1] is the data JSON object
+                    json msgJson = process_telemetry_data(map, j[1], lane, ref_velocity); // j[1] is the data JSON object
 
                     auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
                     //this_thread::sleep_for(chrono::milliseconds(1000));
                     sendMessage(ws, msg);
+                } else {
+                    cout << "Unknown event type (" << event << ") received!!" << "\n";
                 }
             } else {
                 // Manual driving
@@ -89,9 +96,9 @@ int main() {
 
     h.onConnection([&h, &firstTimeConnecting](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
         if (firstTimeConnecting) {
-            cout << "Connected for first time!!!  Restarting simulator!" << endl;
+            cout << "Connected for first time!!!" << endl;
             firstTimeConnecting = false;
-            sendMessage(ws, RESET_SIMULATOR_WS_MESSAGE);
+            //∞sendMessage(ws, RESET_SIMULATOR_WS_MESSAGE);
         } else {
             cout << "Reconnected to simulator, success!" << endl;
         }
@@ -174,7 +181,7 @@ string hasData(string s) {
     return "";
 }
 
-json process_telemetry_data(Map map, json data) {
+json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
     json msgJson;
 
     // Main car's localization Data
@@ -195,20 +202,97 @@ json process_telemetry_data(Map map, json data) {
     // Sensor Fusion Data, a list of all other cars on the same side of the road.
     auto sensor_fusion = data["sensor_fusion"]; // format is [ id, x, y, vx, vy, s, d]
 
+    int prev_size = previous_path_x.size();
+
+    vector<double> pts_x;
+    vector<double> pts_y;
+
+    // ref x,y,yaw states either we will reference the starting point where car is or the previous path end point
+    double ref_x;
+    double ref_y;
+    double ref_yaw;
+
+    // If we're almost empty on paths, use the car as starting reference
+    if (prev_size < 2) {
+        ref_x = car_x;
+        ref_y = car_y;
+        ref_yaw = map.deg2rad(car_yaw);
+        double prev_car_x = car_x - cos(car_yaw);
+        double prev_car_y = car_y - sin(car_yaw);
+
+        pts_x.push_back(prev_car_x);
+        pts_x.push_back(car_x);
+
+        pts_y.push_back(prev_car_y);
+        pts_y.push_back(car_y);
+    } else {
+        ref_x = previous_path_x[prev_size - 1];
+        ref_y = previous_path_y[prev_size - 1];
+
+        double ref_x_prev = previous_path_x[prev_size - 2];
+        double ref_y_prev = previous_path_y[prev_size - 2];
+        ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+
+        pts_x.push_back(ref_x_prev);
+        pts_x.push_back(ref_x);
+
+        pts_y.push_back(ref_y_prev);
+        pts_y.push_back(ref_y);
+    }
+
+    vector<pair<double, double>> wps;
+
+    wps.push_back(map.getXY(car_s + 30, (2 + 4 * lane)));
+    wps.push_back(map.getXY(car_s + 60, (2 + 4 * lane)));
+    wps.push_back(map.getXY(car_s + 90, (2 + 4 * lane)));
+
+    for (pair<double, double> wp : wps) {
+        pts_x.push_back(wp.first);
+        pts_y.push_back(wp.second);
+    }
+
+    for (int i = 0; i < pts_x.size(); ++i) {
+        double shift_x = pts_x[i] - ref_x;
+        double shift_y = pts_y[i] - ref_y;
+
+        pts_x[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
+        pts_y[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
+    }
+
+    tk::spline s;
+    s.set_points(pts_x, pts_y);
+
     vector<double> next_x_vals;
     vector<double> next_y_vals;
 
-    double dist_inc = 0.5;
-    for (int i = 0; i < 50; i++) {
-        double next_s = car_s + (i + 1) * dist_inc;
-        double next_d = 6;
-        pair<double, double> xy = map.getXY(next_s, next_d);
+    // Add all previous paths to next
+    next_x_vals.insert(end(next_x_vals), begin(previous_path_x), end(previous_path_x));
+    next_y_vals.insert(end(next_y_vals), begin(previous_path_y), end(previous_path_y));
 
-        next_x_vals.push_back(xy.first);
-        next_y_vals.push_back(xy.second);
+    double target_x = 30.;
+    double target_y = s(target_x);
+    double target_dist = sqrt(target_x * target_x + target_y * target_y);
+
+    double x_add_on = 0;
+
+    for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
+        double N = target_dist / (.02 * ref_velocity / 2.24); // converting back to meters/s, not MPH
+        double x_point = x_add_on + target_x / N;
+        double y_point = s(x_point);
+
+        x_add_on = x_point;
+
+        double x_ref = x_point;
+        double y_ref = y_point;
+
+        // rotate back to normal after rotating it earlier
+        x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
+        y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
+
+        next_x_vals.push_back(x_point);
+        next_y_vals.push_back(y_point);
     }
 
-    // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
     msgJson["next_x"] = next_x_vals;
     msgJson["next_y"] = next_y_vals;
 
