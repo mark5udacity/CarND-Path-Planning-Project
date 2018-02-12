@@ -13,11 +13,12 @@
 
 using namespace std;
 
-// for convenience
 using json = nlohmann::json;
 
+static const double MAX_SPEED_CHANGE = .224; // About 5 m/s^2 accelleration
+
+
 static const int WEBSOCKECT_OK_DISCONNECT_CODE = 1000;
-static const string RESET_SIMULATOR_WS_MESSAGE = "42[\"reset\", {}]";
 static const string MANUAL_WS_MESSAGE = "42[\"manual\",{}]";
 
 // Checks if the SocketIO event has JSON data.
@@ -27,7 +28,7 @@ string hasData(string s);
 
 void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
 
-json process_telemetry_data(Map map, json data, int lane, double ref_velocity);
+json process_telemetry_data(Map map, json data, int lane, double &ref_velocity);
 
 int main() {
     uWS::Hub h;
@@ -42,7 +43,7 @@ int main() {
 
     // start in lane 1
     int lane = 1;
-    double ref_velocity = 49.5; //mph
+    double ref_velocity = 0; //mph
 
     h.onMessage( [&lane, &map, &ref_velocity] (
             uWS::WebSocket<uWS::SERVER> ws,
@@ -98,7 +99,6 @@ int main() {
         if (firstTimeConnecting) {
             cout << "Connected for first time!!!" << endl;
             firstTimeConnecting = false;
-            //∞sendMessage(ws, RESET_SIMULATOR_WS_MESSAGE);
         } else {
             cout << "Reconnected to simulator, success!" << endl;
         }
@@ -181,7 +181,7 @@ string hasData(string s) {
     return "";
 }
 
-json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
+json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) {
     json msgJson;
 
     // Main car's localization Data
@@ -206,7 +206,7 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
 
     double last_s = prev_size > 0 ? end_path_s : car_s;
 
-    //bool too_close = false;
+    bool too_close = false;
     for (auto cur_sense : sensor_fusion) {
         float d = cur_sense[6];
         bool in_same_lane = d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2);
@@ -219,10 +219,15 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
 
             bool getting_close = check_car_s > last_s && (check_car_s - last_s) < 30;
             if (getting_close) {
-                ref_velocity = 29.5; // mph
-                //too_close = true;
+                too_close = true;
             }
         }
+    }
+
+    if (too_close) {
+        ref_velocity -= MAX_SPEED_CHANGE;
+    } else if (ref_velocity < 49.5) {
+        ref_velocity += MAX_SPEED_CHANGE;
     }
 
     vector<double> pts_x;
