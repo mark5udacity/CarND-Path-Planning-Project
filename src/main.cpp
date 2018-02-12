@@ -204,6 +204,27 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
 
     int prev_size = previous_path_x.size();
 
+    double last_s = prev_size > 0 ? end_path_s : car_s;
+
+    //bool too_close = false;
+    for (auto cur_sense : sensor_fusion) {
+        float d = cur_sense[6];
+        bool in_same_lane = d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2);
+        if (in_same_lane) {
+            double v_x = cur_sense[3];
+            double v_y = cur_sense[4];
+            double check_speed = sqrt(v_x * v_x + v_y * v_y);
+            double check_car_s = cur_sense[5];
+            check_car_s += (double) prev_size * .02 * check_speed;
+
+            bool getting_close = check_car_s > last_s && (check_car_s - last_s) < 30;
+            if (getting_close) {
+                ref_velocity = 29.5; // mph
+                //too_close = true;
+            }
+        }
+    }
+
     vector<double> pts_x;
     vector<double> pts_y;
 
@@ -242,9 +263,9 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
 
     // Add some some extra space for starting reference
     vector<pair<double, double>> wps;
-    wps.push_back(map.getXY(car_s + 30, (2 + 4 * lane)));
-    wps.push_back(map.getXY(car_s + 60, (2 + 4 * lane)));
-    wps.push_back(map.getXY(car_s + 90, (2 + 4 * lane)));
+    wps.push_back(map.getXY(last_s + 30, (2 + 4 * lane)));
+    wps.push_back(map.getXY(last_s + 60, (2 + 4 * lane)));
+    wps.push_back(map.getXY(last_s + 90, (2 + 4 * lane)));
     for (pair<double, double> wp : wps) {
         pts_x.push_back(wp.first);
         pts_y.push_back(wp.second);
