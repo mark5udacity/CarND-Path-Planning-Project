@@ -31,7 +31,7 @@ string hasData(string s);
 
 void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); }
 
-json process_telemetry_data(Map map, json data, int lane, double &ref_velocity);
+json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity);
 
 int main() {
     uWS::Hub h;
@@ -184,7 +184,7 @@ string hasData(string s) {
     return "";
 }
 
-json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) {
+json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity) {
     json msgJson;
 
     // Main car's localization Data
@@ -223,6 +223,9 @@ json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) 
             bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
             if (getting_close) {
                 too_close = true;
+                if (lane > 0) {
+                    lane = 0;
+                }
             }
         }
     }
