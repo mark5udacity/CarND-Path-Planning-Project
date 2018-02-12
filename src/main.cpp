@@ -17,12 +17,25 @@ using json = nlohmann::json;
 
 static const double MAX_SPEED = 49.5;
 static const double MAX_SPEED_CHANGE = .224; // About 5 m/s^2 accelleration
-
+static const double MPH_TO_METERS = 2.24;
+static const double LANE_WIDTH = 4.; // in meters, useful for d part of Frenet coordinates
+static const double HALF_LANE_WIDTH = LANE_WIDTH / 2.; // to avoid having to compute /2 everytime.
 static const int NUM_POINTS = 50; // Number of points to use in path
 static const double TARGET_DISTANCE = 30.; // How far to look ahead with path calc.
-
+static const double SIMULATOR_TIME_STEP = .02; // Num seconds between each point that the simulator
 static const int WEBSOCKECT_OK_DISCONNECT_CODE = 1000;
 static const string MANUAL_WS_MESSAGE = "42[\"manual\",{}]";
+
+struct SF_CONSTANTS {
+    explicit SF_CONSTANTS(){};
+
+    static const int v_x = 3;
+    static const int v_y = 4;
+    static const int s = 5;
+    const int d = 6;
+};
+
+static const struct SF_CONSTANTS SENSOR_FUSION_IDX;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -211,14 +224,14 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
 
     bool too_close = false;
     for (auto cur_sense : sensor_fusion) {
-        float d = cur_sense[6];
-        bool in_same_lane = d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2);
+        float d = cur_sense[SENSOR_FUSION_IDX.d];
+        bool in_same_lane = d < (LANE_WIDTH + LANE_WIDTH * lane) && d > LANE_WIDTH * lane;
         if (in_same_lane) {
-            double v_x = cur_sense[3];
-            double v_y = cur_sense[4];
+            double v_x = cur_sense[SENSOR_FUSION_IDX.v_x];
+            double v_y = cur_sense[SENSOR_FUSION_IDX.v_y];
             double check_speed = sqrt(v_x * v_x + v_y * v_y);
-            double check_car_s = cur_sense[5];
-            check_car_s += (double) prev_size * .02 * check_speed;
+            double check_car_s = cur_sense[SENSOR_FUSION_IDX.s];
+            check_car_s += (double) prev_size * SIMULATOR_TIME_STEP * check_speed;
 
             bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
             if (getting_close) {
@@ -274,9 +287,9 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
 
     // Add some some extra space for starting reference
     vector<pair<double, double>> wps;
-    wps.push_back(map.getXY(last_s + 30, (2 + 4 * lane)));
-    wps.push_back(map.getXY(last_s + 60, (2 + 4 * lane)));
-    wps.push_back(map.getXY(last_s + 90, (2 + 4 * lane)));
+    wps.push_back(map.getXY(last_s + TARGET_DISTANCE    , (HALF_LANE_WIDTH + LANE_WIDTH * lane)));
+    wps.push_back(map.getXY(last_s + TARGET_DISTANCE * 2, (HALF_LANE_WIDTH + LANE_WIDTH * lane)));
+    wps.push_back(map.getXY(last_s + TARGET_DISTANCE * 3, (HALF_LANE_WIDTH + LANE_WIDTH * lane)));
     for (pair<double, double> wp : wps) {
         pts_x.push_back(wp.first);
         pts_y.push_back(wp.second);
@@ -307,8 +320,9 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
 
     double x_add_on = 0;
 
-    for (int i = 1; i <= NUM_POINTS - previous_path_x.size(); i++) {
-        double N = target_dist / (.02 * ref_velocity / 2.24); // converting back to meters/s, not MPH
+    int points_to_add = NUM_POINTS - prev_size;
+    for (int i = 1; i <= points_to_add; i++) {
+        double N = target_dist / (SIMULATOR_TIME_STEP * ref_velocity / MPH_TO_METERS); // converting back to meters/s, not MPH
         double x_point = x_add_on + target_x / N;
         double y_point = spline(x_point);
 
