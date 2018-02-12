@@ -15,8 +15,11 @@ using namespace std;
 
 using json = nlohmann::json;
 
+static const double MAX_SPEED = 49.5;
 static const double MAX_SPEED_CHANGE = .224; // About 5 m/s^2 accelleration
 
+static const int NUM_POINTS = 50; // Number of points to use in path
+static const double TARGET_DISTANCE = 30.; // How far to look ahead with path calc.
 
 static const int WEBSOCKECT_OK_DISCONNECT_CODE = 1000;
 static const string MANUAL_WS_MESSAGE = "42[\"manual\",{}]";
@@ -217,7 +220,7 @@ json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) 
             double check_car_s = cur_sense[5];
             check_car_s += (double) prev_size * .02 * check_speed;
 
-            bool getting_close = check_car_s > last_s && (check_car_s - last_s) < 30;
+            bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
             if (getting_close) {
                 too_close = true;
             }
@@ -226,7 +229,7 @@ json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) 
 
     if (too_close) {
         ref_velocity -= MAX_SPEED_CHANGE;
-    } else if (ref_velocity < 49.5) {
+    } else if (ref_velocity < MAX_SPEED) {
         ref_velocity += MAX_SPEED_CHANGE;
     }
 
@@ -295,13 +298,13 @@ json process_telemetry_data(Map map, json data, int lane, double &ref_velocity) 
     next_x_vals.insert(end(next_x_vals), begin(previous_path_x), end(previous_path_x));
     next_y_vals.insert(end(next_y_vals), begin(previous_path_y), end(previous_path_y));
 
-    double target_x = 30.;
+    double target_x = TARGET_DISTANCE;
     double target_y = spline(target_x);
     double target_dist = sqrt(target_x * target_x + target_y * target_y);
 
     double x_add_on = 0;
 
-    for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
+    for (int i = 1; i <= NUM_POINTS - previous_path_x.size(); i++) {
         double N = target_dist / (.02 * ref_velocity / 2.24); // converting back to meters/s, not MPH
         double x_point = x_add_on + target_x / N;
         double y_point = spline(x_point);
