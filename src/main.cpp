@@ -240,17 +240,17 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
         pts_y.push_back(ref_y);
     }
 
+    // Add some some extra space for starting reference
     vector<pair<double, double>> wps;
-
     wps.push_back(map.getXY(car_s + 30, (2 + 4 * lane)));
     wps.push_back(map.getXY(car_s + 60, (2 + 4 * lane)));
     wps.push_back(map.getXY(car_s + 90, (2 + 4 * lane)));
-
     for (pair<double, double> wp : wps) {
         pts_x.push_back(wp.first);
         pts_y.push_back(wp.second);
     }
 
+    // Transform to local car coordinates
     for (int i = 0; i < pts_x.size(); ++i) {
         double shift_x = pts_x[i] - ref_x;
         double shift_y = pts_y[i] - ref_y;
@@ -259,8 +259,8 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
         pts_y[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
     }
 
-    tk::spline s;
-    s.set_points(pts_x, pts_y);
+    tk::spline spline;
+    spline.set_points(pts_x, pts_y);
 
     vector<double> next_x_vals;
     vector<double> next_y_vals;
@@ -270,7 +270,7 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
     next_y_vals.insert(end(next_y_vals), begin(previous_path_y), end(previous_path_y));
 
     double target_x = 30.;
-    double target_y = s(target_x);
+    double target_y = spline(target_x);
     double target_dist = sqrt(target_x * target_x + target_y * target_y);
 
     double x_add_on = 0;
@@ -278,16 +278,21 @@ json process_telemetry_data(Map map, json data, int lane, double ref_velocity) {
     for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
         double N = target_dist / (.02 * ref_velocity / 2.24); // converting back to meters/s, not MPH
         double x_point = x_add_on + target_x / N;
-        double y_point = s(x_point);
+        double y_point = spline(x_point);
 
         x_add_on = x_point;
 
-        double x_ref = x_point;
-        double y_ref = y_point;
+        double local_x_ref = x_point;
+        double local_y_ref = y_point;
 
         // rotate back to normal after rotating it earlier
-        x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
-        y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
+        x_point = local_x_ref * cos(ref_yaw) - local_y_ref * sin(ref_yaw);
+        y_point = local_x_ref * sin(ref_yaw) + local_y_ref * cos(ref_yaw);
+
+
+        // Very poor naming from Q&A, x_ref looks a lot like ref_x, was stuck on that for a little!
+        x_point += ref_x;
+        y_point += ref_y;
 
         next_x_vals.push_back(x_point);
         next_y_vals.push_back(y_point);
