@@ -18,8 +18,11 @@ using json = nlohmann::json;
 static const double MAX_SPEED = 49.5;
 static const double MAX_SPEED_CHANGE = .224; // About 5 m/s^2 accelleration
 static const double MPH_TO_METERS = 2.24;
+
+static const int NUM_LANES = 3; // FYI: Lanes are indexed at 0.
 static const double LANE_WIDTH = 4.; // in meters, useful for d part of Frenet coordinates
 static const double HALF_LANE_WIDTH = LANE_WIDTH / 2.; // to avoid having to compute /2 everytime.
+
 static const int NUM_POINTS = 50; // Number of points to use in path
 static const double TARGET_DISTANCE = 30.; // How far to look ahead with path calc.
 static const double SIMULATOR_TIME_STEP = .02; // Num seconds between each point that the simulator
@@ -222,31 +225,54 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
 
     double last_s = prev_size > 0 ? end_path_s : car_s;
 
-    bool too_close = false;
+    bool same_lane_clear = true;
+    bool left_lane_clear = lane == 0 ? false : true;
+    bool right_lane_clear = lane == NUM_LANES - 1 ? false : true;
+
     for (auto cur_sense : sensor_fusion) {
         float d = cur_sense[SENSOR_FUSION_IDX.d];
+        double v_x = cur_sense[SENSOR_FUSION_IDX.v_x];
+        double v_y = cur_sense[SENSOR_FUSION_IDX.v_y];
+        double check_speed = sqrt(v_x * v_x + v_y * v_y);
+        double check_car_s = cur_sense[SENSOR_FUSION_IDX.s];
+        check_car_s += (double) prev_size * SIMULATOR_TIME_STEP * check_speed;
+        bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
+
         bool in_same_lane = d < (LANE_WIDTH + LANE_WIDTH * lane) && d > LANE_WIDTH * lane;
         if (in_same_lane) {
-            double v_x = cur_sense[SENSOR_FUSION_IDX.v_x];
-            double v_y = cur_sense[SENSOR_FUSION_IDX.v_y];
-            double check_speed = sqrt(v_x * v_x + v_y * v_y);
-            double check_car_s = cur_sense[SENSOR_FUSION_IDX.s];
-            check_car_s += (double) prev_size * SIMULATOR_TIME_STEP * check_speed;
 
-            bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
             if (getting_close) {
-                too_close = true;
-                if (lane > 0) {
-                    lane = 0;
+                same_lane_clear = false;
+            }
+        } else {
+            bool in_left_lane = d < LANE_WIDTH * lane;
+            bool in_right_lane = d > LANE_WIDTH + LANE_WIDTH * lane;
+            if (in_left_lane) {
+                if (getting_close) {
+                    left_lane_clear = false;
+                }
+            } else {
+                if (!in_right_lane) {
+                    cout << "in_right_lane must be true if we are here! For car's lane: " << lane << " and sensor's d: " << d << "\n";
+                }
+
+                if (getting_close) {
+                    right_lane_clear = false;
                 }
             }
         }
     }
 
-    if (too_close) {
+    if (same_lane_clear) {
+        if (ref_velocity < MAX_SPEED) {
+            ref_velocity += MAX_SPEED_CHANGE;
+        }
+    } else if (left_lane_clear) {
+        lane--;
+    } else if (right_lane_clear) {
+        lane++;
+    } else {
         ref_velocity -= MAX_SPEED_CHANGE;
-    } else if (ref_velocity < MAX_SPEED) {
-        ref_velocity += MAX_SPEED_CHANGE;
     }
 
     vector<double> pts_x;
