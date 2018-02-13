@@ -54,6 +54,8 @@ pair<vector<double>, vector<double>> generate_trajectory_for_lane(json data,
                                                                   const int lane,
                                                                   const double ref_velocity);
 
+void determine_lane_and_velocity(json data, int &lane, double &ref_velocity);
+
 int main() {
     uWS::Hub h;
     bool firstTimeConnecting = true;
@@ -206,6 +208,18 @@ string hasData(string s) {
 }
 
 json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity) {
+    determine_lane_and_velocity(data, lane, ref_velocity);
+
+    pair<vector<double>, vector<double>> trajectory = generate_trajectory_for_lane(data, map, lane, ref_velocity);
+
+    json msgJson;
+    msgJson["next_x"] = trajectory.first;
+    msgJson["next_y"] = trajectory.second;
+
+    return msgJson;
+}
+
+void determine_lane_and_velocity(json data, int &lane, double &ref_velocity) {
     // Main car's localization Data
     double car_s = data["s"];
 
@@ -273,14 +287,6 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
     } else {
         ref_velocity -= MAX_SPEED_CHANGE;
     }
-
-    pair<vector<double>, vector<double>> trajectory = generate_trajectory_for_lane(data, map, lane, ref_velocity);
-
-    json msgJson;
-    msgJson["next_x"] = trajectory.first;
-    msgJson["next_y"] = trajectory.second;
-
-    return msgJson;
 }
 
 pair<vector<double>, vector<double>> generate_trajectory_for_lane(json data,
@@ -298,9 +304,6 @@ pair<vector<double>, vector<double>> generate_trajectory_for_lane(json data,
     auto previous_path_y = data["previous_path_y"];
     // Previous path's end s and d values
     double end_path_s = data["end_path_s"];
-
-    // Sensor Fusion Data, a list of all other cars on the same side of the road.
-    auto sensor_fusion = data["sensor_fusion"]; // format is [ id, x, y, vx, vy, s, d]
 
     int prev_size = previous_path_x.size();
 
