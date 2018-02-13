@@ -255,6 +255,9 @@ void determine_lane_and_velocity(json data, int &lane, double &ref_velocity) {
                 same_lane_clear = false;
             }
         } else {
+            // Possible improvement -- these checks will return true if the car is in lane 0,
+            // but the sensed obstacle is in lane 2, thereby preventing the car from going to 1.
+            // I would rather implement FSM than fix this issue as the car performs fairly well otherwise.
             bool in_left_lane = d < LANE_WIDTH * lane;
             bool in_right_lane = d > LANE_WIDTH + LANE_WIDTH * lane;
 
@@ -265,7 +268,7 @@ void determine_lane_and_velocity(json data, int &lane, double &ref_velocity) {
                     left_lane_clear = false;
                 }
             } else {
-                if (!in_right_lane) {
+                if (!in_right_lane) { // I may need to reconsider this logic? But again, would prefer to use FSM
                     cout << "in_right_lane must be true if we are here! For car's lane: " << lane << " and sensor's d: " << d << "\n";
                 }
 
