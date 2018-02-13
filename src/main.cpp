@@ -49,6 +49,11 @@ void sendMessage(uWS::WebSocket<uWS::SERVER> ws, string msg) { ws.send(msg.data(
 
 json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity);
 
+pair<vector<double>, vector<double>> generate_trajectory_for_lane(json data,
+                                                                  Map map,
+                                                                  const int lane,
+                                                                  const double ref_velocity);
+
 int main() {
     uWS::Hub h;
     bool firstTimeConnecting = true;
@@ -201,22 +206,14 @@ string hasData(string s) {
 }
 
 json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity) {
-    json msgJson;
-
     // Main car's localization Data
-    double car_x = data["x"];
-    double car_y = data["y"];
     double car_s = data["s"];
-    double car_d = data["d"];
-    double car_yaw = data["yaw"];
-    double car_speed = data["speed"];
 
     // Previous path data given to the Planner
     auto previous_path_x = data["previous_path_x"];
     auto previous_path_y = data["previous_path_y"];
     // Previous path's end s and d values
     double end_path_s = data["end_path_s"];
-    double end_path_d = data["end_path_d"];
 
     // Sensor Fusion Data, a list of all other cars on the same side of the road.
     auto sensor_fusion = data["sensor_fusion"]; // format is [ id, x, y, vx, vy, s, d]
@@ -276,6 +273,38 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
     } else {
         ref_velocity -= MAX_SPEED_CHANGE;
     }
+
+    pair<vector<double>, vector<double>> trajectory = generate_trajectory_for_lane(data, map, lane, ref_velocity);
+
+    json msgJson;
+    msgJson["next_x"] = trajectory.first;
+    msgJson["next_y"] = trajectory.second;
+
+    return msgJson;
+}
+
+pair<vector<double>, vector<double>> generate_trajectory_for_lane(json data,
+                                                                  Map map,
+                                                                  const int lane,
+                                                                  const double ref_velocity) {
+    // Main car's localization Data
+    double car_x = data["x"];
+    double car_y = data["y"];
+    double car_s = data["s"];
+    double car_yaw = data["yaw"];
+
+    // Previous path data given to the Planner
+    auto previous_path_x = data["previous_path_x"];
+    auto previous_path_y = data["previous_path_y"];
+    // Previous path's end s and d values
+    double end_path_s = data["end_path_s"];
+
+    // Sensor Fusion Data, a list of all other cars on the same side of the road.
+    auto sensor_fusion = data["sensor_fusion"]; // format is [ id, x, y, vx, vy, s, d]
+
+    int prev_size = previous_path_x.size();
+
+    double last_s = prev_size > 0 ? end_path_s : car_s;
 
     vector<double> pts_x;
     vector<double> pts_y;
@@ -372,8 +401,5 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
         next_y_vals.push_back(y_point);
     }
 
-    msgJson["next_x"] = next_x_vals;
-    msgJson["next_y"] = next_y_vals;
-
-    return msgJson;
+    return make_pair(next_x_vals, next_y_vals);
 }
