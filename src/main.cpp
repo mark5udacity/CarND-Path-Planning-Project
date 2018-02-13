@@ -226,8 +226,8 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
     double last_s = prev_size > 0 ? end_path_s : car_s;
 
     bool same_lane_clear = true;
-    bool left_lane_clear = lane == 0 ? false : true;
-    bool right_lane_clear = lane == NUM_LANES - 1 ? false : true;
+    bool left_lane_clear = lane != 0;
+    bool right_lane_clear = lane != NUM_LANES - 1;
 
     for (auto cur_sense : sensor_fusion) {
         float d = cur_sense[SENSOR_FUSION_IDX.d];
@@ -236,17 +236,19 @@ json process_telemetry_data(Map map, json data, int &lane, double &ref_velocity)
         double check_speed = sqrt(v_x * v_x + v_y * v_y);
         double check_car_s = cur_sense[SENSOR_FUSION_IDX.s];
         check_car_s += (double) prev_size * SIMULATOR_TIME_STEP * check_speed;
-        bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
 
         bool in_same_lane = d < (LANE_WIDTH + LANE_WIDTH * lane) && d > LANE_WIDTH * lane;
         if (in_same_lane) {
-
+            bool getting_close = check_car_s > last_s && (check_car_s - last_s) < TARGET_DISTANCE;
             if (getting_close) {
                 same_lane_clear = false;
             }
         } else {
             bool in_left_lane = d < LANE_WIDTH * lane;
             bool in_right_lane = d > LANE_WIDTH + LANE_WIDTH * lane;
+
+            bool getting_close = check_car_s > last_s - TARGET_DISTANCE / 3
+                                   && check_car_s - last_s < TARGET_DISTANCE;
             if (in_left_lane) {
                 if (getting_close) {
                     left_lane_clear = false;
