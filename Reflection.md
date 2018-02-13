@@ -80,3 +80,18 @@ map coordinates while generating the trajectory and then rotated back before ret
 spline library is used to fill the in the rest.  After we reach 50 points, we prefer using the previous_path 
 (as provided when we receive a websocket update)  so that we are only needing to generate a couple points per cycle.
 
+
+### Some fun ###
+I was tempted to claim victory as I found a "cheat" in the game, err... Udacity simulator that allowed my car
+to fly ahead at 49.5 mph without having to change lanes or anything.  The way to fly is simple.  Set the car on a
+straight path and to go 49.5 MPH (this is fairly simple with the Frenet coordinates).  Then, when the car 
+eventually collides with the one in front of it, click "manual" mode.  I noticed the simulator is doing some
+really funky things between these different modes.  In auto mode, physics literally doesn't matter, the car will follow
+whatever path is set, and one can even set the speed to 1000 mph and the car will just go.  Since manual mode brings
+us to the real world, and we are "stuck" after colliding with a vehicle in auto mode, the car will fly up.  Then,
+mid-way through the summersault, just turn off manual and the car will continue straight and 'pass' the course.
+
+This approach is fun, but would require cooperation from the Udacity reviewer.  
+
+Here's a screenshot:
+![alt text][image1]
