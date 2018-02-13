@@ -7,10 +7,6 @@
 
 using namespace std;
 
-Map::Map() {}
-
-Map::~Map() {}
-
 void Map::load_map(string map_file) {
     map_waypoints_x.clear();
     map_waypoints_y.clear();
@@ -73,9 +69,9 @@ int Map::NextWaypoint(double x, double y, double theta) {
     double heading = atan2((map_y - y), (map_x - x));
 
     double angle = fabs(theta - heading);
-    angle = min(2 * pi() - angle, angle);
+    angle = min(2 * M_PI - angle, angle);
 
-    if (angle > pi() / 4) {
+    if (angle > M_PI / 4) {
         closestWaypoint++;
         if (closestWaypoint == map_waypoints_x.size()) {
             closestWaypoint = 0;
@@ -148,7 +144,7 @@ pair<double, double> Map::getXY(double s, double d) {
     double seg_x = map_waypoints_x[prev_wp] + seg_s * cos(heading);
     double seg_y = map_waypoints_y[prev_wp] + seg_s * sin(heading);
 
-    double perp_heading = heading - pi() / 2;
+    double perp_heading = heading - M_PI / 2;
 
     double x = seg_x + d * cos(perp_heading);
     double y = seg_y + d * sin(perp_heading);

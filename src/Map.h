@@ -28,17 +28,12 @@ private:
     vector<double> map_waypoints_dy;
 
 public:
-    Map();
-
-    virtual ~Map();
-
     // Load up map values for waypoint's x,y,s and d normalized normal vectors
     void load_map(string map_file);
 
     // For converting back and forth between radians and degrees.
-    constexpr double pi() { return M_PI; }
-    double deg2rad(double x) { return x * pi() / 180; }
-    double rad2deg(double x) { return x * 180 / pi(); }
+    double deg2rad(double x) { return x * M_PI / 180; }
+    double rad2deg(double x) { return x * 180 / M_PI; }
 
     double distance(double x1, double y1, double x2, double y2);
 
